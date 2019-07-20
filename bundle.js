@@ -22,11 +22,11 @@ const moduleAnalyser = ( filename ) => {
         }
     });
     // 将原始代码转化为浏览器可识别的代码，用到babel/core
-    console.log(dependencies);
+    // console.log(dependencies);
     const { code } = babel.transformFromAst(ast,null,{
         presets:["@babel/preset-env"]
     });
-    console.log(code);
+    // console.log(code);
     return {
         filename,
         dependencies,
@@ -36,12 +36,14 @@ const moduleAnalyser = ( filename ) => {
 
 const makeDependenciesGraph = (entry) => {
     const entryModule = moduleAnalyser(entry);
-    const graphArry = [entryModule];
+    const graphArry = [ entryModule ];
     for(let i=0;i<graphArry.length;i++){
         const item = graphArry[i];
         const { dependencies } = item;
-        for(let j in dependencies){
-            graphArry.push(moduleAnalyser(dependencies[j]));
+        if(dependencies){
+            for(let j in dependencies){
+                graphArry.push(moduleAnalyser(dependencies[j]));
+            }
         }
     }
 
@@ -55,6 +57,29 @@ const makeDependenciesGraph = (entry) => {
     return graph;
 }
 
+const generateCode = (entry) => {
+    const graph = JSON.stringify(makeDependenciesGraph(entry));
+    return `
+        (function(graph){
+            function require(module){
+                // 相对路径转为绝对路径
+                function localRequire(relativePath){
+                    return require(graph[module].dependencies[relativePath]);
+                }
+                var exports = {};
+                (function(require,exports,code){
+                    eval(code);
+                })(localRequire,exports,graph[module].code);
+                console.log(exports);
+                return exports;
+            };
+            require('${entry}')
+        })(${graph});
+    `;
+}
 // const moduleInfo = moduleAnalyser('./src/index.js');
-const graphInfo = makeDependenciesGraph('./src/index.js');
-console.log(graphInfo);
+// console.log(moduleInfo);
+// const graphInfo = makeDependenciesGraph('./src/index.js');
+// console.log(graphInfo);
+const code = generateCode('./src/index.js');
+console.log(code);
